@@ -1,0 +1,246 @@
+---
+title: "Biliary Atresia"
+author: "Swapnav Deka"
+date: "6/8/2018"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+biliary <- subset(read.csv('BILIATRY ATRESIA DATA- Deidentified.csv'), UNIQUE.IDENTIFIER != 'NA')
+echo <- subset(read.csv('Echo Data - De-Identified.csv'), Unique.Identifier != 'NA')
+ekg <- subset(read.csv('ekg_data_De-Identified.csv'), mrn != 'NA')
+
+bil_ACLF <- subset(biliary, aclf_status == 'ACLF')
+bil_non_ACLF <- subset(biliary, aclf_status == 'non-ACLF')
+
+ekg_ACLF <- subset(ekg, aclf_status == 'ACLF')
+ekg_non_ACLF <- subset(ekg, aclf_status == 'non-ACLF')
+
+biliary$mrn <- biliary$UNIQUE.IDENTIFIER
+
+merged <- biliary
+
+merged <- merge(biliary, ekg, by="mrn")
+merged$GF.factor <- ifelse(merged$z_wt.age < -2 | merged$z_len.age < -2, 1, 0)
+
+#merged <- merged[complete.cases(merged$albumin), ]
+#merged <- merged[complete.cases(merged$alk_phos), ]
+#merged <- merged[complete.cases(merged$creat), ]
+#merged <- merged[complete.cases(merged$ggt), ]
+#merged <- merged[complete.cases(merged$inr), ]
+#merged <- merged[complete.cases(merged$platelets), ]
+#merged <- merged[complete.cases(merged$sodium), ]
+#merged <- merged[complete.cases(merged$total_bili), ]
+
+#merged <- merged[complete.cases(merged$z_wt.len), ]
+#merged <- merged[complete.cases(merged$z_wt.age), ]
+#merged <- merged[complete.cases(merged$z_len.age), ]
+#merged <- merged[complete.cases(merged$z_bmi.age), ]
+#merged <- merged[complete.cases(merged$GF.factor), ]
+
+#merged <- merged[complete.cases(merged$vent_rate), ]
+#merged <- merged[complete.cases(merged$pr_int), ]
+#merged <- merged[complete.cases(merged$qrs), ]
+#merged <- merged[complete.cases(merged$qt), ]
+#merged <- merged[complete.cases(merged$qtc), ]
+#merged <- merged[complete.cases(merged$p.axis), ]
+#merged <- merged[complete.cases(merged$r.axis), ]
+#merged <- merged[complete.cases(merged$t.axis), ]
+
+#Does not affect
+#merged <- merged[complete.cases(merged$listing_age), ]
+#merged <- merged[complete.cases(merged$wait), ]
+
+
+
+```
+
+```{r}
+t.test(4.80*log(bil_ACLF$total_bili),4.80*log(bil_non_ACLF$total_bili))
+t.test(6.87*log(bil_ACLF$albumin),6.87*log(bil_non_ACLF$albumin))
+t.test(18.57*log(bil_ACLF$inr),18.57*log(bil_non_ACLF$inr))
+
+t.test(bil_ACLF$total_bili,bil_non_ACLF$total_bili)
+t.test(bil_ACLF$albumin,bil_non_ACLF$albumin)
+t.test(bil_ACLF$inr,bil_non_ACLF$inr)
+
+```
+
+```{r}
+'PELD = 4.80[Ln serum bilirubin (mg/dL)] + 18.57[Ln INR] - 6.87[Ln albumin (g/dL)] + 4.36(<1 year old) + 6.67(growth failure)'
+
+merged$PELD_ <- round(10*(0.480*log(merged$total_bili) + 1.857*log(merged$inr) - 0.687*log(merged$albumin) + 0.436*(merged$age.factor) + 0.667*(merged$GF.factor)))
+
+'merged$PELD_gf1 <- round(10*(0.480*log(merged$total_bili) + 1.857*log(merged$inr) - 0.687*log(merged$albumin) + 0.436*(merged$age.factor) + 0.667*(1)))'
+
+'merged$PELD_gf0 <- round(10*(0.480*log(merged$total_bili) + 1.857*log(merged$inr) - 0.687*log(merged$albumin) + 0.436*(merged$age.factor) + 0.667*(0)))'
+
+```
+
+```{r}
+library(aod)
+library(ggplot2)
+
+
+merged$GF.factor <- factor(merged$GF.factor)
+glm1 <- glm(aclf_status.x ~ total_bili + inr + listing_age + total_bili*GF.factor, data = merged, family = "binomial")
+summary(glm1)
+
+cooksd <- cooks.distance(glm1)
+sample_size <- nrow(merged)
+plot(cooksd, pch="*", cex=2, main="Influential Obs by Cooks distance")  # plot cook's distance
+abline(h = 4/sample_size, col="red")  # add cutoff line
+text(x=1:length(cooksd)+1, y=cooksd, labels=ifelse(cooksd>4/sample_size, names(cooksd),""), col="red")  # add labels
+
+influential <- as.numeric(names(cooksd)[(cooksd > (4/sample_size))])
+
+merged_new <- merged[-influential, ]
+glm1_new <- glm(aclf_status.x ~ total_bili + inr + listing_age + total_bili*GF.factor, data = merged_new, family = "binomial")
+summary(glm1_new)
+
+
+
+
+
+glm2 <- glm(aclf_status.x ~ log(total_bili) + log(inr) + listing_age, data = merged_new, family = "binomial")
+summary(glm2)
+
+glm3 <- glm(aclf_status.x ~ PELD_, data = merged_new, family = "binomial")
+summary(glm3)
+
+
+
+```
+
+```{r}
+new_ACLF <- subset(merged_new, aclf_status.x == 'ACLF')
+new_non_ACLF <- subset(merged_new, aclf_status.x == 'non-ACLF')
+
+t.test(new_ACLF$listing_age,new_non_ACLF$listing_age)
+sd(new_ACLF$listing_age)
+sd(new_non_ACLF$listing_age)
+
+t.test(new_ACLF$total_bili,new_non_ACLF$total_bili)
+sd(new_ACLF$total_bili)
+sd(new_non_ACLF$total_bili)
+
+t.test(new_ACLF$inr,new_non_ACLF$inr)
+sd(new_ACLF$inr)
+sd(new_non_ACLF$inr)
+
+t.test(new_ACLF$platelets,new_non_ACLF$platelets)
+sd(new_ACLF$platelets)
+sd(new_non_ACLF$platelets)
+
+t.test(new_ACLF$ggt,new_non_ACLF$ggt)
+sd(new_ACLF$ggt)
+sd(new_non_ACLF$ggt)
+
+t.test(new_ACLF$z_len.age,new_non_ACLF$z_len.age)
+sd(new_ACLF$z_len.age)
+sd(new_non_ACLF$z_len.age)
+
+t.test(new_ACLF$z_wt.age,new_non_ACLF$z_wt.age)
+sd(new_ACLF$z_wt.age)
+sd(new_non_ACLF$z_wt.age)
+
+t.test(new_ACLF$z_wt.len,new_non_ACLF$z_wt.len)
+sd(new_ACLF$z_wt.len)
+sd(new_non_ACLF$z_wt.len)
+
+t.test(new_ACLF$z_bmi.age,new_non_ACLF$z_bmi.age)
+sd(new_ACLF$z_bmi.age)
+sd(new_non_ACLF$z_bmi.age)
+
+t.test(new_ACLF$sodium,new_non_ACLF$sodium)
+sd(new_ACLF$sodium)
+sd(new_non_ACLF$sodium)
+
+t.test(new_ACLF$creat,new_non_ACLF$creat)
+sd(new_ACLF$creat)
+sd(new_non_ACLF$creat)
+
+t.test(new_ACLF$albumin,new_non_ACLF$albumin)
+sd(new_ACLF$albumin)
+sd(new_non_ACLF$albumin)
+
+t.test(new_ACLF$alk_phos,new_non_ACLF$alk_phos)
+sd(new_ACLF$alk_phos)
+sd(new_non_ACLF$alk_phos)
+
+```
+
+```{r}
+t.test(new_ACLF$qrs,new_non_ACLF$qrs)
+sd(new_ACLF$qrs)
+sd(new_non_ACLF$qrs)
+
+t.test(new_ACLF$p.axis,new_non_ACLF$p.axis)
+sd(new_ACLF$p.axis)
+sd(new_non_ACLF$p.axis)
+
+t.test(new_ACLF$t.axis,new_non_ACLF$t.axis)
+sd(new_ACLF$t.axis)
+sd(new_non_ACLF$t.axis)
+
+t.test(new_ACLF$r.axis,new_non_ACLF$r.axis)
+sd(new_ACLF$r.axis)
+sd(new_non_ACLF$r.axis)
+
+t.test(new_ACLF$vent_rate,new_non_ACLF$vent_rate)
+sd(new_ACLF$vent_rate)
+sd(new_non_ACLF$vent_rate)
+
+t.test(new_ACLF$pr_int,new_non_ACLF$pr_int)
+sd(new_ACLF$pr_int)
+sd(new_non_ACLF$pr_int)
+
+t.test(new_ACLF$qt,new_non_ACLF$qt)
+sd(new_ACLF$qt)
+sd(new_non_ACLF$qt)
+
+t.test(new_ACLF$qtc,new_non_ACLF$qtc)
+sd(new_ACLF$qtc)
+sd(new_non_ACLF$qtc)
+```
+
+```{r}
+qtc_l_445_aclf <- sum(new_ACLF$qtc < 445)
+qtc_l_445_non_aclf <- sum(new_non_ACLF$qtc < 445)
+qtc_g_445_aclf <- sum(new_ACLF$qtc > 444.5)
+qtc_g_445_non_aclf <- sum(new_non_ACLF$qtc > 444.5)
+
+ftest = matrix(c(qtc_l_445_aclf,qtc_l_445_non_aclf,qtc_g_445_aclf,qtc_g_445_non_aclf), ncol=2)
+ftest
+fisher.test(ftest)
+```
+
+```{r}
+GF_yes_aclf <- sum(new_ACLF$GF.factor == 1)
+GF_yes_aclf
+GF_yes_non_aclf <- sum(new_non_ACLF$GF.factor == 1)
+GF_yes_non_aclf
+GF_no_aclf <- sum(new_ACLF$GF.factor == 0)
+GF_no_aclf
+GF_no_non_aclf <- sum(new_non_ACLF$GF.factor == 0)
+GF_no_non_aclf
+
+chitest = matrix(c(GF_no_aclf,GF_no_non_aclf,GF_yes_aclf,GF_yes_non_aclf), ncol=2)
+
+chitest
+chisq.test(chitest)
+```
+

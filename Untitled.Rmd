@@ -1,0 +1,686 @@
+---
+title: "Biliary Atresia"
+author: "Swapnav Deka"
+date: "6/8/2018"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+#ACLF <- subset(merged, aclf_status.x=='ACLF')
+#kasai_ACLF <- subset(ACLF, kasai_status == 1)
+
+#median(ACLF$listing_age)
+#non_ACLF <- subset(merged, aclf_status.x=='non-ACLF')
+#median(non_ACLF$listing_age)
+
+#sum(with(merged, aclf_status.x=='non-ACLF' & pretrans_death==1))
+
+#data <- read.csv("ba_data_2015_v4.csv")
+
+#data$listing_peld <- 10*(0.480*log(data$total_bili)+1.857*log(data$inr)
+#                         -0.687*log(data$albumin)+0.463*data$age.factor)
+#data[data$listing_peld <0,]$listing_peld <- 0   
+
+#data <- subset(data, listing_age < 1856)
+
+library(readxl)
+Male_UNOS_GF <- read_excel("Male UNOS GF.xlsx", 
+    col_types = c("numeric", "numeric", "numeric", 
+        "numeric"))
+
+library(readxl)
+Female_UNOS_GF <- read_excel("Female UNOS GF.xlsx", 
+    col_types = c("numeric", "numeric", "numeric", 
+        "numeric"))
+
+GF_calc <- function(age, height, weight, sex){
+  age = age/365.25*12
+  mround <- function(x,base){ 
+        base*floor(x/base) 
+} 
+  if (sex == 'M'){
+    age_lower <- Male_UNOS_GF$`Age Lower`
+    height_list <- Male_UNOS_GF$`Height Cut-off`
+    weight_list <- Male_UNOS_GF$`Weight cut-off`
+  }
+  if (sex == 'F'){
+    age_lower <- Female_UNOS_GF$`Age Lower`
+    height_list <- Female_UNOS_GF$`Height Cut-off`
+    weight_list <- Female_UNOS_GF$`Weight cut-off`
+  }
+  count = 1
+  for (num in age_lower){
+    if (num == mround(age,3)){
+      break
+    }
+    else count = count + 1
+  }
+  if (height < height_list[count]){
+    return(1)
+  }
+  if (weight < weight_list[count]){
+    return(1)
+  }
+  return(0)
+}
+
+```
+
+
+
+```{r}
+BA_data <- read_excel("BA in ACLF Simplified  - Deidentified_Sep18.xlsx")
+BA_data <- subset(BA_data, listing_age < 4383)
+BA_data$transplant_status <- ifelse((is.na(BA_data$lt_date)),0,1)
+
+echo <- subset(read.csv('Echo Data - De-Identified.csv'), Unique.Identifier != 'NA')
+ekg <- subset(read.csv('ekg_data_De-Identified.csv'), mrn != 'NA')
+
+for (row in 1:nrow(BA_data)){
+    BA_data$GF.factor[row] <- GF_calc(BA_data$listing_age[row], BA_data$height[row], BA_data$weight[row], BA_data$sex[row])
+}
+BA_data$age.factor <- ifelse(BA_data$listing_age < 365, 1, 0)
+BA_data$PELD <- round(10*(0.480*log(BA_data$total_bili) + 1.857*log(BA_data$inr) - 0.687*log(BA_data$albumin) + 0.436*(BA_data$age.factor) + 0.667*(BA_data$GF.factor)))
+
+bil_ACLF <- subset(BA_data, aclf_status == 'ACLF')
+bil_non_ACLF <- subset(BA_data, aclf_status == 'non-ACLF')
+
+ekg_ACLF <- subset(ekg, aclf_status == 'ACLF')
+ekg_non_ACLF <- subset(ekg, aclf_status == 'non-ACLF')
+
+#ekgID_data <- data.frame(ekg$mrn, ekg$aclf_status)
+#bilID_data <- data.frame(BA_data$Identifier, BA_data$aclf_status)
+#colnames(ekgID_data)[1] <- "mrn"
+#colnames(bilID_data)[1] <- "mrn"
+#colnames(echo)[1] <- "mrn"
+
+#ID_data <- merge(ekgID_data, bilID_data, by="mrn", all=TRUE)
+
+#echo_merge <- merge(bilID_data,echo, by='mrn')
+#colnames(echo_merge)[2] <- "aclf_status"
+
+#echo_ACLF <- subset(echo_merge, aclf_status == 'ACLF')
+#echo_non_ACLF <- subset(echo_merge, aclf_status == 'non-ACLF')
+
+bil_ACLF$`z_bmi-age` <- as.numeric(as.character(bil_ACLF$`z_bmi-age`))
+bil_non_ACLF$`z_bmi-age` <- as.numeric(as.character(bil_non_ACLF$`z_bmi-age`))
+
+mean(bil_ACLF$`z_bmi-age`, na.rm=T)
+mean(bil_non_ACLF$`z_bmi-age`, na.rm=T)
+
+comp <- data.frame(BA_data$aclf_status, BA_data$`z_wt-len`)
+kruskal.test(BA_data$`z_wt-len` ~ BA_data.aclf_status, data = comp)
+
+
+new_merg <- merge(BA_data, echo, by.x='Identifier', by.y='Unique.Identifier', all=T)
+new_merge <- merge(new_merg, ekg, by.x='Identifier', by.y='mrn', all=T)
+```
+
+
+```{r}
+biliary <- subset(read.csv('BILIATRY ATRESIA DATA- Deidentified.csv'), UNIQUE.IDENTIFIER != 'NA')
+echo <- subset(read.csv('Echo Data - De-Identified.csv'), Unique.Identifier != 'NA')
+ekg <- subset(read.csv('ekg_data_De-Identified.csv'), mrn != 'NA')
+
+bil_ACLF <- subset(BA_data, aclf_status == 'ACLF')
+bil_non_ACLF <- subset(BA_data, aclf_status == 'non-ACLF')
+
+#ekg_ACLF <- subset(ekg, aclf_status == 'ACLF')
+#ekg_non_ACLF <- subset(ekg, aclf_status == 'non-ACLF')
+
+biliary$mrn <- biliary$UNIQUE.IDENTIFIER
+
+merged <- biliary
+merged <- merge(biliary, ekg, by="mrn", all=TRUE)
+
+#merged$old_total_bili <- merged$total_bili
+#merged$old_albumin <- merged$albumin
+#merged$old_inr <- merged$inr
+
+merged$total_bili <- ifelse(merged$total_bili < 1.0, 1.0, merged$total_bili)
+merged$albumin <- ifelse(merged$albumin < 1.0, 1.0, merged$albumin)
+merged$inr <- ifelse(merged$inr < 1.0, 1.0, merged$inr)
+merged <- subset(merged, listing_age < 4383)
+#merged$GF.factor <- ifelse(merged$z_wt.age < -2 | merged$z_len.age < -2, 1, 0)
+
+
+#merged_alk <- merged[complete.cases(merged$alk_phos), ] #removes 5
+#merged_creat <- merged[complete.cases(merged$creat), ] #removes 8
+#merged_ggt <- merged[complete.cases(merged$ggt), ] #removes 6
+#merged_plat <- merged[complete.cases(merged$platelets), ] #removes 9
+#merged_sod <- merged[complete.cases(merged$sodium), ] #removes 15
+
+#Removes 17
+#merged <- merged[complete.cases(merged$vent_rate), ]
+#merged <- merged[complete.cases(merged$pr_int), ]
+#merged <- merged[complete.cases(merged$qrs), ] 
+#merged <- merged[complete.cases(merged$qt), ]
+#merged <- merged[complete.cases(merged$qtc), ]
+#merged <- merged[complete.cases(merged$p.axis), ] #removes 20
+#merged <- merged[complete.cases(merged$r.axis), ]
+#merged <- merged[complete.cases(merged$t.axis), ]
+
+
+
+
+
+#Removes 9
+#merged <- merged[complete.cases(merged$z_wt.len), ]
+#merged <- merged[complete.cases(merged$z_wt.age), ]
+#merged <- merged[complete.cases(merged$z_len.age), ]
+#merged <- merged[complete.cases(merged$z_bmi.age), ]
+#merged <- merged[complete.cases(merged$GF.factor), ]
+
+#Do not affect
+#merged <- merged[complete.cases(merged$albumin), ]
+#merged <- merged[complete.cases(merged$inr), ]
+#merged <- merged[complete.cases(merged$total_bili), ]
+#merged <- merged[complete.cases(merged$listing_age), ]
+#merged <- merged[complete.cases(merged$wait), ]
+
+```
+
+```{r}
+#weianthro <- read.table("weianthro.txt",header=T,sep="",skip=0)
+#lenanthro<-read.table("lenanthro.txt",header=T,sep="",skip=0) 
+#bmianthro<-read.table("bmianthro.txt",header=T,sep="",skip=0) 
+#hcanthro<-read.table("hcanthro.txt",header=T,sep="",skip=0) 
+#acanthro<-read.table("acanthro.txt",header=T,sep="",skip=0) 
+#ssanthro<-read.table("ssanthro.txt",header=T,sep="",skip=0) 
+#tsanthro<-read.table("tsanthro.txt",header=T,sep="",skip=0) 
+#wflanthro<-read.table("wflanthro.txt",header=T,sep="",skip=0) 
+#wfhanthro<-read.table("wfhanthro.txt",header=T,sep="",skip=0)
+
+#source("igrowup_standard.r") 
+#source("igrowup_restricted.r")
+
+#survey<-read.csv("survey.csv",header=T,sep=",",skip=0,na.strings="")
+
+#igrowup.restricted(FilePath="/Users/sdeka1997/Downloads/example1",
+#FileLab="MySurvey",mydf=survey,sex=GENDER,age=agemons,age.month=T, weight=WEIGHT, lenhei=HEIGHT)
+
+#merged <- subset(merged, listing_age < 1856)
+
+#merged <- merged[complete.cases(merged$sex), ] #removes 5
+#merged <- merged[complete.cases(merged$listing_age), ] #removes 5
+#merged <- merged[complete.cases(merged$weight_1), ] #removes 5
+#merged <- merged[complete.cases(merged$height), ] #removes 5
+
+#igrowup.restricted(FilePath="/Users/sdeka1997/Downloads/example2",
+#FileLab="MyMerged",mydf=merged,sex=sex,age=listing_age,age.month=F,weight=weight_1, lenhei=height)
+```
+
+```{r}
+#merged<-read.csv("z.csv",sep=",")
+#z$GF.factor <- ifelse(z$zwei < -2 | z$zlen < -2, 0, 1)
+#merged$GF.factor <- ifelse(merged$zlen < -2 | merged$zwei < -2, 1, 0)
+#merged$GF.factor <- ifelse(merged$listing_age < 730, merged$GF.factor, 0)
+#merged$GF.factor_old <- ifelse(merged$z_wt.age < -2 | merged$z_len.age < -2, 1, 0)
+
+for (row in 1:nrow(merged)){
+    merged$GF.factor[row] <- GF_calc(merged$listing_age[row], merged$height[row], merged$weight_1[row], merged$sex[row])
+}
+
+
+```
+
+
+```{r}
+merged$PELD <- round(10*(0.480*log(merged$total_bili) + 1.857*log(merged$inr) - 0.687*log(merged$albumin) + 0.436*(merged$age.factor) + 0.667*(merged$GF.factor)))
+
+#merged$PELD_old <- merged$listing_unos 
+
+#woo <- data.frame(merged$listing_age,merged$height,merged$weight_1,merged$sex,merged$PELD,merged$PELD_old,merged$albumin,merged$total_bili,merged$inr)
+
+```
+
+```{r}
+#t.test(4.80*log(bil_ACLF$total_bili),4.80*log(bil_non_ACLF$total_bili))
+#t.test(6.87*log(bil_ACLF$albumin),6.87*log(bil_non_ACLF$albumin))
+#t.test(18.57*log(bil_ACLF$inr),18.57*log(bil_non_ACLF$inr))
+
+#t.test(bil_ACLF$total_bili,bil_non_ACLF$total_bili)
+#t.test(bil_ACLF$albumin,bil_non_ACLF$albumin)
+#t.test(bil_ACLF$inr,bil_non_ACLF$inr)
+
+```
+
+```{r}
+#library(aod)
+library(ggplot2)
+
+modell <- glm(aclf_status.x ~ inr + total_bili + albumin + listing_age + GF.factor, data = merged, family = "binomial")
+summary(modell)
+```
+
+
+```{r}
+library(ggplot2)
+
+glm1_woo <- glm(aclf_status.x ~ inr + total_bili + albumin + listing_age + alk_phos + creat + ggt + platelets + sodium + z_wt.len + z_wt.age + z_len.age + z_bmi.age, data = merged, family = "binomial")
+summary(glm1_woo)
+```
+
+```{r}
+#glm_woo <- glm(aclf_status.x ~ total_bili + inr + listing_age + total_bili*GF.factor_new, data = merged, family = binomial(link ="probit"))
+#summary()
+
+
+#merged$GF.factor_new <- factor(merged$GF.factor_new)
+glm1 <- glm(aclf_status.x ~ total_bili + inr + listing_age + total_bili*GF.factor, data = merged, family = binomial(link ="probit"))
+summary(glm1)
+```
+
+
+```{r}
+cooksd <- cooks.distance(glm1_woo)
+sample_size <- nrow(merged)
+plot(cooksd, pch="*", cex=2, main="Influential Obs by Cooks distance")  # plot cook's distance
+abline(h = 4/sample_size, col="red")  # add cutoff line
+text(x=1:length(cooksd)+1, y=cooksd, labels=ifelse(cooksd>4/sample_size, names(cooksd),""), col="red")  # add labels
+
+influential <- as.numeric(names(cooksd)[(cooksd > (4/sample_size))])
+```
+
+
+```{r}
+
+merged_new <- merged[-influential, ]
+
+glm1_woo <- glm(aclf_status.x ~ inr + total_bili + albumin + listing_age + alk_phos + creat + ggt + platelets + sodium + z_wt.len + z_wt.age + z_len.age + z_bmi.age, data = merged_new, family = "binomial")
+summary(glm1_woo)
+
+#glm1_new <- glm(aclf_status.x ~ total_bili + inr + listing_age + total_bili*GF.factor_new, data = merged_new, family = "binomial")
+#summary(glm1_new)
+
+
+```
+
+
+```{r}
+#glm1 <- glm(aclf_status.x ~ alk_phos + creat + ggt + platelets + sodium, data = merged, family = "binomial")
+#summary(glm1)
+```
+
+
+
+```{r}
+
+#Alk
+merged_alk <- merged_new[complete.cases(merged_new$alk_phos), ] #removes 5
+new_ACLF_alk <- subset(merged_alk, aclf_status.x == 'ACLF')
+new_non_ACLF_alk <- subset(merged_alk, aclf_status.x == 'non-ACLF')
+
+t.test(new_ACLF_alk$alk_phos,new_non_ACLF_alk$alk_phos)
+sd(new_ACLF_alk$alk_phos)
+sd(new_non_ACLF_alk$alk_phos)
+
+#Creatine
+merged_creat <- merged_new[complete.cases(merged_new$creat), ] #removes 8
+new_ACLF_creat <- subset(merged_creat, aclf_status.x == 'ACLF')
+new_non_ACLF_creat <- subset(merged_creat, aclf_status.x == 'non-ACLF')
+
+t.test(new_ACLF_creat$creat,new_non_ACLF_creat$creat)
+sd(new_ACLF_creat$creat)
+sd(new_non_ACLF_creat$creat)
+
+#GGT
+merged_ggt <- merged_new[complete.cases(merged_new$ggt), ] #removes 6
+new_ACLF_ggt <- subset(merged_ggt, aclf_status.x == 'ACLF')
+new_non_ACLF_ggt <- subset(merged_ggt, aclf_status.x == 'non-ACLF')
+
+t.test(new_ACLF_ggt$ggt,new_non_ACLF_ggt$ggt)
+sd(new_ACLF_ggt$ggt)
+sd(new_non_ACLF_ggt$ggt)
+
+
+#Platelets
+merged_plat <- merged_new[complete.cases(merged_new$platelets), ] #removes 9
+new_ACLF_plat <- subset(merged_plat, aclf_status.x == 'ACLF')
+new_non_ACLF_plat <- subset(merged_plat, aclf_status.x == 'non-ACLF')
+
+t.test(new_ACLF_plat$platelets,new_non_ACLF_plat$platelets)
+sd(new_ACLF_plat$platelets)
+sd(new_non_ACLF_plat$platelets)
+
+
+#Sodium
+merged_sod <- merged_new[complete.cases(merged_new$sodium), ] #removes 15
+new_ACLF_sod <- subset(merged_sod, aclf_status.x == 'ACLF')
+new_non_ACLF_sod <- subset(merged_sod, aclf_status.x == 'non-ACLF')
+
+t.test(new_ACLF_sod$sodium,new_non_ACLF_sod$sodium)
+sd(new_ACLF_sod$sodium)
+sd(new_non_ACLF_sod$sodium)
+
+
+#PELD Factors
+new_ACLF <- subset(merged_new, aclf_status.x == 'ACLF')
+new_non_ACLF <- subset(merged_new, aclf_status.x == 'non-ACLF')
+
+
+#Listing Age
+t.test(new_ACLF$listing_age,new_non_ACLF$listing_age)
+sd(new_ACLF$listing_age)
+sd(new_non_ACLF$listing_age)
+
+#Total Bili
+t.test(new_ACLF$total_bili,new_non_ACLF$total_bili)
+sd(new_ACLF$total_bili)
+sd(new_non_ACLF$total_bili)
+
+#INR
+t.test(new_ACLF$inr,new_non_ACLF$inr)
+sd(new_ACLF$inr)
+sd(new_non_ACLF$inr)
+
+#Albumin
+t.test(new_ACLF$albumin,new_non_ACLF$albumin)
+sd(new_ACLF$albumin)
+sd(new_non_ACLF$albumin)
+
+
+
+
+# t.test(new_ACLF$z_len.age,new_non_ACLF$z_len.age)
+# sd(new_ACLF$z_len.age)
+# sd(new_non_ACLF$z_len.age)
+# 
+# t.test(new_ACLF$z_wt.age,new_non_ACLF$z_wt.age)
+# sd(new_ACLF$z_wt.age)
+# sd(new_non_ACLF$z_wt.age)
+# 
+# t.test(new_ACLF$z_wt.len,new_non_ACLF$z_wt.len)
+# sd(new_ACLF$z_wt.len)
+# sd(new_non_ACLF$z_wt.len)
+# 
+# t.test(new_ACLF$z_bmi.age,new_non_ACLF$z_bmi.age)
+# sd(new_ACLF$z_bmi.age)
+# sd(new_non_ACLF$z_bmi.age)
+
+
+
+```
+
+```{r}
+#EKG T-Tests
+# t.test(new_ACLF$qrs,new_non_ACLF$qrs)
+# sd(new_ACLF$qrs)
+# sd(new_non_ACLF$qrs)
+# 
+# t.test(new_ACLF$p.axis,new_non_ACLF$p.axis)
+# sd(new_ACLF$p.axis)
+# sd(new_non_ACLF$p.axis)
+# 
+# t.test(new_ACLF$t.axis,new_non_ACLF$t.axis)
+# sd(new_ACLF$t.axis)
+# sd(new_non_ACLF$t.axis)
+# 
+# t.test(new_ACLF$r.axis,new_non_ACLF$r.axis)
+# sd(new_ACLF$r.axis)
+# sd(new_non_ACLF$r.axis)
+# 
+# t.test(new_ACLF$vent_rate,new_non_ACLF$vent_rate)
+# sd(new_ACLF$vent_rate)
+# sd(new_non_ACLF$vent_rate)
+# 
+# t.test(new_ACLF$pr_int,new_non_ACLF$pr_int)
+# sd(new_ACLF$pr_int)
+# sd(new_non_ACLF$pr_int)
+# 
+# t.test(new_ACLF$qt,new_non_ACLF$qt)
+# sd(new_ACLF$qt)
+# sd(new_non_ACLF$qt)
+# 
+# t.test(new_ACLF$qtc,new_non_ACLF$qtc)
+# sd(new_ACLF$qtc)
+# sd(new_non_ACLF$qtc)
+```
+
+```{r}
+# qtc_l_445_aclf <- sum(new_ACLF$qtc < 445)
+# qtc_l_445_aclf
+# qtc_l_445_non_aclf <- sum(new_non_ACLF$qtc < 445)
+# qtc_l_445_non_aclf
+# qtc_g_445_aclf <- sum(new_ACLF$qtc > 444.5)
+# qtc_g_445_aclf
+# qtc_g_445_non_aclf <- sum(new_non_ACLF$qtc > 444.5)
+# qtc_g_445_non_aclf
+# 
+# ftest = matrix(c(qtc_l_445_aclf,qtc_l_445_non_aclf,qtc_g_445_aclf,qtc_g_445_non_aclf), ncol=2)
+# ftest
+# fisher.test(ftest)
+```
+
+```{r}
+# GF_yes_aclf <- sum(new_ACLF$GF.factor == 1)
+# GF_yes_aclf
+# GF_yes_non_aclf <- sum(new_non_ACLF$GF.factor == 1)
+# GF_yes_non_aclf
+# GF_no_aclf <- sum(new_ACLF$GF.factor == 0)
+# GF_no_aclf
+# GF_no_non_aclf <- sum(new_non_ACLF$GF.factor == 0)
+# GF_no_non_aclf
+# 
+# chitest = matrix(c(GF_no_aclf,GF_no_non_aclf,GF_yes_aclf,GF_yes_non_aclf), ncol=2)
+# 
+# chitest
+# chisq.test(chitest)
+```
+
+```{r}
+library(rpart)
+library(rpart.plot)
+
+fit_all <- rpart(aclf_status.x ~ albumin + alk_phos + creat + ggt + inr + platelets + sodium + total_bili, data = merged_new, method = 'class')
+rpart.plot(fit_all)
+
+
+fit_sig <- rpart(aclf_status.x ~ listing_age + inr + total_bili + platelets, data = merged_new, method = 'class')
+rpart.plot(fit_sig)
+
+
+fit_nonpeld <- rpart(aclf_status.x ~ alk_phos + creat + ggt + platelets + sodium, data = merged_new, method = 'class')
+rpart.plot(fit_nonpeld)
+
+
+fit_peld <- rpart(aclf_status.x ~ inr + albumin + total_bili + listing_age + GF.factor, data = merged_new, method = 'class')
+rpart.plot(fit_peld)
+```
+
+
+```{r}
+#survivaldata <- subset(BA_data, listing_age < 4383)
+
+# for (row in 1:nrow(survivaldata)){
+#     survivaldata$GF.factor[row] <- GF_calc(survivaldata$listing_age[row], survivaldata$height[row], survivaldata$weight[row], survivaldata$sex[row])
+# }
+# 
+# survivaldata$age.factor <- ifelse(survivaldata$listing_age < 365, 1, 0)
+# 
+# survivaldata$PELD <- round(10*(0.480*log(survivaldata$total_bili) + 1.857*log(survivaldata$inr) - 0.687*log(survivaldata$albumin) + 0.436*(survivaldata$age.factor) + 0.667*(survivaldata$GF.factor)))
+
+
+
+library(survival)
+library(survminer)
+library(dplyr)
+
+quantile(survivaldata$total_bili, c(.67))
+quantile(survivaldata$inr)
+quantile(merged_plat$platelets)
+quantile(merged_ggt$ggt)
+quantile(survivaldata$PELD)
+
+
+quantile(new_merge$qtc, c(.33,.67),na.rm=T)
+quantile(new_merge$ea_ratio, c(.33,.67),na.rm=T)
+quantile(new_merge$lv_dias_z, c(.33,.67),na.rm=T)
+quantile(new_merge$lv_midwall_dias_z, c(.33,.67),na.rm=T)
+quantile(new_merge$lv_midwall_sys_z, c(.33,.67),na.rm=T)
+
+
+
+quantile(new_merge$kasai_age, c(.25, .5),na.rm=T)
+quantile(new_merge$PELD, c(.33,.67),na.rm=T)
+quantile(new_merge$total_bili, c(.33,.67),na.rm=T)
+quantile(new_merge$conj_bili, c(.33,.67),na.rm=T)
+quantile(new_merge$platelets, c(.33,.67),na.rm=T)
+quantile(new_merge$ggt, c(.33,.67),na.rm=T)
+quantile(new_merge$albumin, c(.33,.67),na.rm=T)
+quantile(new_merge$z_wt.len, c(.33,.67),na.rm=T)
+
+
+#quantile(new_merge$lv_midwall_sys_z, c(.67),na.rm=T)
+
+new_merge$wait_div30 <- round(new_merge$wait/30, digits = 0)
+new_merge <- new_merge %>% mutate(life = ifelse(aclf_status.x =='ACLF', 0, 1))
+new_merge$ea_ratio <- new_merge$e/new_merge$a
+
+
+new_merge <- new_merge %>% mutate(qtc_group = ifelse(qtc >=435, "above", "below"))
+new_merge$qtc_group <- factor(new_merge$qtc_group)
+
+new_merge <- new_merge %>% mutate(ea_ratio_group = ifelse(ea_ratio >=1.39854, "above", "below"))
+new_merge$ea_ratio_group <- factor(new_merge$ea_ratio_group)
+
+new_merge <- new_merge %>% mutate(lv_dias_z_group = ifelse(lv_dias_z >=1.0065, "above", "below"))
+new_merge$lv_dias_z_group <- factor(new_merge$lv_dias_z_group)
+
+new_merge <- new_merge %>% mutate(lv_midwall_dias_z_group = ifelse(lv_midwall_dias_z >=0.7189, "above", "below"))
+new_merge$lv_midwall_dias_z_group <- factor(new_merge$lv_midwall_dias_z_group)
+
+new_merge <- new_merge %>% mutate(lv_midwall_sys_z_group = ifelse(lv_midwall_sys_z >=0.764, "above", "below"))
+new_merge$lv_midwall_sys_z_group <- factor(new_merge$lv_midwall_sys_z_group)
+
+
+fit1 <- survfit(surv2_object ~ qtc_group, data = new_merge)
+fit2 <- survfit(surv2_object ~ ea_ratio_group, data = new_merge)
+fit3 <- survfit(surv2_object ~ lv_dias_z_group, data = new_merge)
+fit4 <- survfit(surv2_object ~ lv_midwall_dias_z_group, data = new_merge)
+fit5 <- survfit(surv2_object ~ lv_midwall_sys_z_group, data = new_merge)
+
+
+ggsurvplot(fit1, data = new_merge, pval = TRUE)
+ggsurvplot(fit2, data = new_merge, pval = TRUE)
+ggsurvplot(fit3, data = new_merge, pval = TRUE)
+ggsurvplot(fit4, data = new_merge, pval = TRUE)
+ggsurvplot(fit5, data = new_merge, pval = TRUE)
+
+
+
+
+
+new_merge <- new_merge %>% mutate(kasai_age_group = ifelse(kasai_age >=49.25, "above", "below"))
+new_merge$kasai_age_group <- factor(new_merge$kasai_age_group)
+
+new_merge <- new_merge %>% mutate(PELD_group = ifelse(PELD >=4, "above", "below"))
+new_merge$PELD_group <- factor(new_merge$PELD_group)
+
+new_merge <- new_merge %>% mutate(total_bili_group = ifelse(total_bili >=3.83, "above", "below"))
+new_merge$total_bili_group <- factor(new_merge$total_bili_group)
+
+new_merge <- new_merge %>% mutate(conj_bili_group = ifelse(conj_bili >=2.0, "above", "below"))
+new_merge$conj_bili_group <- factor(new_merge$conj_bili_group)
+
+new_merge <- new_merge %>% mutate(platelets_group = ifelse(platelets >=112.33, "above", "below"))
+new_merge$platelets_group <- factor(new_merge$platelets_group)
+
+new_merge <- new_merge %>% mutate(ggt_group = ifelse(ggt >=179.56, "above", "below"))
+new_merge$ggt_group <- factor(new_merge$ggt_group)
+
+new_merge <- new_merge %>% mutate(albumin_group = ifelse(albumin >=2.9, "above", "below"))
+new_merge$albumin_group <- factor(new_merge$albumin_group)
+
+new_merge <- new_merge %>% mutate(z_wt.len_group = ifelse(z_wt.len >=0.4036, "above", "below"))
+new_merge$z_wt.len_group <- factor(new_merge$z_wt.len_group)
+
+#new_merge <- new_merge %>% mutate(lv_midwall_sys_z_group = ifelse(lv_midwall_sys_z >=0.764, "above", "below"))
+#new_merge$lv_midwall_sys_z_group <- factor(new_merge$lv_midwall_sys_z_group)
+
+surv2_object <- Surv(time = new_merge$wait_div30, event = new_merge$life)
+
+fita <- survfit(surv2_object ~ kasai_age_group, data = new_merge)
+fitb <- survfit(surv2_object ~ PELD_group, data = new_merge)
+fitc <- survfit(surv2_object ~ total_bili_group, data = new_merge)
+fitd <- survfit(surv2_object ~ conj_bili_group, data = new_merge)
+fite <- survfit(surv2_object ~ platelets_group, data = new_merge)
+fitf <- survfit(surv2_object ~ ggt_group, data = new_merge)
+fitg <- survfit(surv2_object ~ albumin_group, data = new_merge)
+fith <- survfit(surv2_object ~ z_wt.len_group, data = new_merge)
+
+
+ggsurvplot(fita, data = new_merge, pval = TRUE)
+ggsurvplot(fitb, data = new_merge, pval = TRUE)
+ggsurvplot(fitc, data = new_merge, pval = TRUE)
+ggsurvplot(fitd, data = new_merge, pval = TRUE)
+ggsurvplot(fite, data = new_merge, pval = TRUE)
+ggsurvplot(fitf, data = new_merge, pval = TRUE)
+ggsurvplot(fitg, data = new_merge, pval = TRUE)
+ggsurvplot(fith, data = new_merge, pval = TRUE)
+
+
+
+
+
+
+
+
+
+survivaldata <- survivaldata %>% mutate(life = ifelse(aclf_status =='ACLF', 0, 1))
+
+survivaldata <- survivaldata %>% mutate(bili_group = ifelse(total_bili >=7.7, "above", "below"))
+survivaldata$bili_group <- factor(survivaldata$bili_group)
+
+survivaldata <- survivaldata %>% mutate(inr_group = ifelse(inr >=1.7, "above1.3", "below1.3"))
+survivaldata$inr_group <- factor(survivaldata$inr_group)
+
+survivaldata$platelets <- as.numeric(survivaldata$platelets)
+survivaldata <- survivaldata %>% mutate(plat_group = ifelse(platelets >=142, "above142", "below142"))
+survivaldata$plat_group <- factor(survivaldata$plat_group)
+
+survivaldata$ggt <- as.numeric(survivaldata$ggt)
+survivaldata <- survivaldata %>% mutate(ggt_group = ifelse(ggt >=298, "above298", "below298"))
+survivaldata$ggt_group <- factor(survivaldata$ggt_group)
+
+survivaldata <- survivaldata %>% mutate(PELD_group = ifelse(PELD >=9, "above9", "below9"))
+survivaldata$PELD_group <- factor(survivaldata$PELD_group)
+
+survivaldata <- survivaldata %>% mutate(albumin_group = ifelse(total_bili >=3, "above3", "below3"))
+survivaldata$albumin_group <- factor(survivaldata$albumin_group)
+
+
+surv_object <- Surv(time = survivaldata$wait_div30, event = survivaldata$life)
+
+#fit1 <- survfit(surv_object ~ aclf_status.x, data = merged)
+fit2 <- survfit(surv_object ~ bili_group, data = survivaldata)
+fit3 <- survfit(surv_object ~ inr_group, data = survivaldata)
+fit4 <- survfit(surv_object ~ plat_group, data = survivaldata)
+fit5 <- survfit(surv_object ~ ggt_group, data = survivaldata)
+fit6 <- survfit(surv_object ~ PELD_group, data = survivaldata)
+fit7 <- survfit(surv_object ~ albumin_group, data = survivaldata)
+
+
+#ggsurvplot(fit1, data = merged, pval = TRUE)
+ggsurvplot(fit2, data = survivaldata, pval = TRUE)
+ggsurvplot(fit3, data = survivaldata, pval = TRUE)
+ggsurvplot(fit4, data = survivaldata, pval = TRUE)
+ggsurvplot(fit5, data = survivaldata, pval = TRUE)
+ggsurvplot(fit6, data = survivaldata, pval = TRUE)
+ggsurvplot(fit7, data = survivaldata, pval = TRUE)
+
+
+```
